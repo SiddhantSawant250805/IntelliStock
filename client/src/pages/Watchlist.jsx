@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { 
-  Star, 
-  TrendingUp, 
-  TrendingDown, 
-  Trash2, 
+import {
+  Star,
+  TrendingUp,
+  TrendingDown,
+  Trash2,
   Plus,
   BarChart3,
   AlertCircle
 } from 'lucide-react'
+import axios from 'axios'
 import StockChart from '../components/Charts/StockChart'
 import toast from 'react-hot-toast'
 
@@ -16,105 +17,51 @@ const Watchlist = () => {
   const [watchlist, setWatchlist] = useState([])
   const [selectedStock, setSelectedStock] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
   useEffect(() => {
-    // Mock watchlist data
-    const mockWatchlist = [
-      {
-        id: 1,
-        symbol: 'AAPL',
-        name: 'Apple Inc.',
-        price: 175.43,
-        change: 2.34,
-        changePercent: 1.35,
-        prediction: 'Buy',
-        confidence: 85,
-        targetPrice: 180,
-        sentiment: 'Positive',
-        data: [
-          { date: '2024-01-01', value: 170 },
-          { date: '2024-01-02', value: 172 },
-          { date: '2024-01-03', value: 168 },
-          { date: '2024-01-04', value: 174 },
-          { date: '2024-01-05', value: 176 },
-          { date: '2024-01-06', value: 175 },
-          { date: '2024-01-07', value: 175.43 }
-        ]
-      },
-      {
-        id: 2,
-        symbol: 'GOOGL',
-        name: 'Alphabet Inc.',
-        price: 2847.63,
-        change: -15.23,
-        changePercent: -0.53,
-        prediction: 'Hold',
-        confidence: 72,
-        targetPrice: 2900,
-        sentiment: 'Neutral',
-        data: [
-          { date: '2024-01-01', value: 2800 },
-          { date: '2024-01-02', value: 2820 },
-          { date: '2024-01-03', value: 2790 },
-          { date: '2024-01-04', value: 2860 },
-          { date: '2024-01-05', value: 2880 },
-          { date: '2024-01-06', value: 2863 },
-          { date: '2024-01-07', value: 2847.63 }
-        ]
-      },
-      {
-        id: 3,
-        symbol: 'MSFT',
-        name: 'Microsoft Corp.',
-        price: 378.85,
-        change: 5.67,
-        changePercent: 1.52,
-        prediction: 'Buy',
-        confidence: 91,
-        targetPrice: 390,
-        sentiment: 'Positive',
-        data: [
-          { date: '2024-01-01', value: 370 },
-          { date: '2024-01-02', value: 372 },
-          { date: '2024-01-03', value: 368 },
-          { date: '2024-01-04', value: 375 },
-          { date: '2024-01-05', value: 380 },
-          { date: '2024-01-06', value: 373 },
-          { date: '2024-01-07', value: 378.85 }
-        ]
-      },
-      {
-        id: 4,
-        symbol: 'TSLA',
-        name: 'Tesla Inc.',
-        price: 248.42,
-        change: -8.91,
-        changePercent: -3.46,
-        prediction: 'Sell',
-        confidence: 68,
-        targetPrice: 230,
-        sentiment: 'Negative',
-        data: [
-          { date: '2024-01-01', value: 260 },
-          { date: '2024-01-02', value: 255 },
-          { date: '2024-01-03', value: 258 },
-          { date: '2024-01-04', value: 252 },
-          { date: '2024-01-05', value: 250 },
-          { date: '2024-01-06', value: 257 },
-          { date: '2024-01-07', value: 248.42 }
-        ]
-      }
-    ]
-    setWatchlist(mockWatchlist)
-    setSelectedStock(mockWatchlist[0])
+    fetchWatchlist()
   }, [])
 
-  const removeFromWatchlist = (id) => {
-    setWatchlist(prev => prev.filter(stock => stock.id !== id))
-    if (selectedStock?.id === id) {
-      setSelectedStock(watchlist[0] || null)
+  const fetchWatchlist = async () => {
+    try {
+      setLoading(true)
+      const token = localStorage.getItem('token')
+      const response = await axios.get(`${API_URL}/api/users/watchlist`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      setWatchlist(response.data)
+      if (response.data.length > 0) {
+        setSelectedStock(response.data[0])
+      }
+    } catch (error) {
+      console.error('Fetch watchlist error:', error)
+      toast.error('Failed to load watchlist')
+    } finally {
+      setLoading(false)
     }
-    toast.success('Stock removed from watchlist')
+  }
+
+  const removeFromWatchlist = async (symbol) => {
+    try {
+      const token = localStorage.getItem('token')
+      await axios.delete(`${API_URL}/api/users/watchlist/${symbol}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      setWatchlist(prev => prev.filter(stock => stock.symbol !== symbol))
+      if (selectedStock?.symbol === symbol) {
+        const remaining = watchlist.filter(stock => stock.symbol !== symbol)
+        setSelectedStock(remaining[0] || null)
+      }
+      toast.success('Stock removed from watchlist')
+    } catch (error) {
+      console.error('Remove from watchlist error:', error)
+      toast.error('Failed to remove stock')
+    }
   }
 
   const getPredictionColor = (prediction) => {
@@ -169,95 +116,114 @@ const Watchlist = () => {
             {/* Watchlist Table */}
             <div className="lg:col-span-2">
               <div className="card">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-700">
-                        <th className="text-left py-4 text-gray-400 font-medium">Stock</th>
-                        <th className="text-right py-4 text-gray-400 font-medium">Price</th>
-                        <th className="text-right py-4 text-gray-400 font-medium">Change</th>
-                        <th className="text-center py-4 text-gray-400 font-medium">Prediction</th>
-                        <th className="text-center py-4 text-gray-400 font-medium">Confidence</th>
-                        <th className="text-center py-4 text-gray-400 font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {watchlist.map((stock, index) => (
-                        <motion.tr
-                          key={stock.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.5, delay: index * 0.1 }}
-                          className={`border-b border-gray-700 hover:bg-gray-800 transition-colors cursor-pointer ${
-                            selectedStock?.id === stock.id ? 'bg-primary-900/20' : ''
-                          }`}
-                          onClick={() => setSelectedStock(stock)}
-                        >
-                          <td className="py-4">
-                            <div className="flex items-center space-x-3">
-                              <Star className="h-5 w-5 text-yellow-400 fill-current" />
-                              <div>
-                                <div className="font-semibold text-white">{stock.symbol}</div>
-                                <div className="text-sm text-gray-400">{stock.name}</div>
+                {loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+                  </div>
+                ) : watchlist.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Star className="h-16 w-16 text-gray-600 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">No stocks in watchlist</h3>
+                    <p className="text-gray-400 mb-6">Add stocks to your watchlist to track them here</p>
+                    <button
+                      onClick={() => setShowAddModal(true)}
+                      className="btn-primary inline-flex items-center space-x-2"
+                    >
+                      <Plus className="h-5 w-5" />
+                      <span>Add Your First Stock</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-700">
+                          <th className="text-left py-4 text-gray-400 font-medium">Stock</th>
+                          <th className="text-right py-4 text-gray-400 font-medium">Price</th>
+                          <th className="text-right py-4 text-gray-400 font-medium">Change</th>
+                          <th className="text-center py-4 text-gray-400 font-medium">Prediction</th>
+                          <th className="text-center py-4 text-gray-400 font-medium">Confidence</th>
+                          <th className="text-center py-4 text-gray-400 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {watchlist.map((stock, index) => (
+                          <motion.tr
+                            key={stock.symbol}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5, delay: index * 0.1 }}
+                            className={`border-b border-gray-700 hover:bg-gray-800 transition-colors cursor-pointer ${
+                              selectedStock?.symbol === stock.symbol ? 'bg-primary-900/20' : ''
+                            }`}
+                            onClick={() => setSelectedStock(stock)}
+                          >
+                            <td className="py-4">
+                              <div className="flex items-center space-x-3">
+                                <Star className="h-5 w-5 text-yellow-400 fill-current" />
+                                <div>
+                                  <div className="font-semibold text-white">{stock.symbol}</div>
+                                  <div className="text-sm text-gray-400">{stock.name}</div>
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="py-4 text-right text-white font-medium">
-                            ${stock.price.toFixed(2)}
-                          </td>
-                          <td className="py-4 text-right">
-                            <div className={`${stock.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              <div className="flex items-center justify-end space-x-1">
-                                {stock.change >= 0 ? (
-                                  <TrendingUp className="h-4 w-4" />
-                                ) : (
-                                  <TrendingDown className="h-4 w-4" />
-                                )}
-                                <span>{stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)}</span>
+                            </td>
+                            <td className="py-4 text-right text-white font-medium">
+                              ${stock.price.toFixed(2)}
+                            </td>
+                            <td className="py-4 text-right">
+                              <div className={`${stock.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                <div className="flex items-center justify-end space-x-1">
+                                  {stock.change >= 0 ? (
+                                    <TrendingUp className="h-4 w-4" />
+                                  ) : (
+                                    <TrendingDown className="h-4 w-4" />
+                                  )}
+                                  <span>{stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)}</span>
+                                </div>
+                                <div className="text-sm">
+                                  ({stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%)
+                                </div>
                               </div>
-                              <div className="text-sm">
-                                ({stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%)
+                            </td>
+                            <td className="py-4 text-center">
+                              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPredictionColor(stock.prediction)}`}>
+                                {stock.prediction}
+                              </span>
+                            </td>
+                            <td className="py-4 text-center">
+                              <div className="text-white font-medium">{stock.confidence}%</div>
+                              <div className="w-16 bg-gray-600 rounded-full h-2 mx-auto mt-1">
+                                <div
+                                  className="bg-primary-500 h-2 rounded-full"
+                                  style={{ width: `${stock.confidence}%` }}
+                                ></div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="py-4 text-center">
-                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPredictionColor(stock.prediction)}`}>
-                              {stock.prediction}
-                            </span>
-                          </td>
-                          <td className="py-4 text-center">
-                            <div className="text-white font-medium">{stock.confidence}%</div>
-                            <div className="w-16 bg-gray-600 rounded-full h-2 mx-auto mt-1">
-                              <div 
-                                className="bg-primary-500 h-2 rounded-full" 
-                                style={{ width: `${stock.confidence}%` }}
-                              ></div>
-                            </div>
-                          </td>
-                          <td className="py-4 text-center">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                removeFromWatchlist(stock.id)
-                              }}
-                              className="text-red-400 hover:text-red-300 transition-colors"
-                            >
-                              <Trash2 className="h-5 w-5" />
-                            </button>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                            </td>
+                            <td className="py-4 text-center">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  removeFromWatchlist(stock.symbol)
+                                }}
+                                className="text-red-400 hover:text-red-300 transition-colors"
+                              >
+                                <Trash2 className="h-5 w-5" />
+                              </button>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Stock Details */}
             <div className="lg:col-span-1">
-              {selectedStock && (
+              {!loading && selectedStock && (
                 <motion.div
-                  key={selectedStock.id}
+                  key={selectedStock.symbol}
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5 }}
@@ -272,7 +238,7 @@ const Watchlist = () => {
                       </div>
                       <Star className="h-6 w-6 text-yellow-400 fill-current" />
                     </div>
-                    
+
                     <div className="space-y-3">
                       <div className="flex justify-between">
                         <span className="text-gray-400">Current Price</span>
@@ -280,7 +246,9 @@ const Watchlist = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Target Price</span>
-                        <span className="text-primary-400 font-semibold">${selectedStock.targetPrice}</span>
+                        <span className="text-primary-400 font-semibold">
+                          {selectedStock.targetPrice > 0 ? `$${selectedStock.targetPrice.toFixed(2)}` : 'N/A'}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Sentiment</span>
@@ -292,39 +260,43 @@ const Watchlist = () => {
                   </div>
 
                   {/* Mini Chart */}
-                  <div className="card">
-                    <h4 className="text-lg font-semibold text-white mb-4">7-Day Trend</h4>
-                    <div className="h-32">
-                      <StockChart 
-                        data={selectedStock.data} 
-                        title=""
-                        color={selectedStock.change >= 0 ? "#10b981" : "#ef4444"}
-                      />
+                  {selectedStock.data && selectedStock.data.length > 0 && (
+                    <div className="card">
+                      <h4 className="text-lg font-semibold text-white mb-4">7-Day Trend</h4>
+                      <div className="h-32">
+                        <StockChart
+                          data={selectedStock.data}
+                          title=""
+                          color={selectedStock.change >= 0 ? "#10b981" : "#ef4444"}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Prediction Details */}
-                  <div className="card">
-                    <h4 className="text-lg font-semibold text-white mb-4">AI Prediction</h4>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-400">Recommendation</span>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPredictionColor(selectedStock.prediction)}`}>
-                          {selectedStock.prediction}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-400">Confidence</span>
-                        <span className="text-white font-semibold">{selectedStock.confidence}%</span>
-                      </div>
-                      <div className="w-full bg-gray-600 rounded-full h-3">
-                        <div 
-                          className="bg-primary-500 h-3 rounded-full transition-all duration-300" 
-                          style={{ width: `${selectedStock.confidence}%` }}
-                        ></div>
+                  {selectedStock.prediction !== 'N/A' && (
+                    <div className="card">
+                      <h4 className="text-lg font-semibold text-white mb-4">AI Prediction</h4>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-400">Recommendation</span>
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPredictionColor(selectedStock.prediction)}`}>
+                            {selectedStock.prediction}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-400">Confidence</span>
+                          <span className="text-white font-semibold">{selectedStock.confidence}%</span>
+                        </div>
+                        <div className="w-full bg-gray-600 rounded-full h-3">
+                          <div
+                            className="bg-primary-500 h-3 rounded-full transition-all duration-300"
+                            style={{ width: `${selectedStock.confidence}%` }}
+                          ></div>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Quick Actions */}
                   <div className="card">

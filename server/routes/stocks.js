@@ -161,6 +161,98 @@ router.get('/:symbol/history', auth, async (req, res) => {
   }
 })
 
+router.get('/news/watchlist', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+    const watchlistSymbols = user.watchlist.map(stock => stock.symbol.toUpperCase())
+
+    const mockNews = [
+      {
+        id: 1,
+        title: "Apple Reports Record Q4 Earnings, Beats Expectations",
+        summary: "Apple Inc. reported quarterly earnings that exceeded analyst expectations, driven by strong iPhone sales and services revenue growth.",
+        impact: "positive",
+        stocks: ["AAPL"],
+        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        source: "MarketWatch",
+        url: "#"
+      },
+      {
+        id: 2,
+        title: "Tesla Faces Production Challenges in China",
+        summary: "Tesla's Shanghai factory encounters supply chain disruptions, potentially affecting Q1 delivery targets.",
+        impact: "negative",
+        stocks: ["TSLA"],
+        timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+        source: "Reuters",
+        url: "#"
+      },
+      {
+        id: 3,
+        title: "Microsoft Azure Revenue Surges 30% Year-over-Year",
+        summary: "Microsoft's cloud computing division continues its strong growth trajectory, boosting overall company performance.",
+        impact: "positive",
+        stocks: ["MSFT"],
+        timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+        source: "Bloomberg",
+        url: "#"
+      },
+      {
+        id: 4,
+        title: "Google Announces Major AI Integration Across Products",
+        summary: "Alphabet reveals comprehensive AI strategy, integrating advanced language models into search and productivity tools.",
+        impact: "positive",
+        stocks: ["GOOGL"],
+        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+        source: "TechCrunch",
+        url: "#"
+      },
+      {
+        id: 5,
+        title: "Federal Reserve Hints at Interest Rate Stability",
+        summary: "Fed officials suggest maintaining current interest rates through Q2, providing market stability signals.",
+        impact: "neutral",
+        stocks: ["SPY", "QQQ"],
+        timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+        source: "CNBC",
+        url: "#"
+      },
+      {
+        id: 6,
+        title: "Amazon Prime Membership Reaches New Milestone",
+        summary: "Amazon reports significant growth in Prime subscriptions, strengthening its ecosystem and recurring revenue.",
+        impact: "positive",
+        stocks: ["AMZN"],
+        timestamp: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString(),
+        source: "Wall Street Journal",
+        url: "#"
+      },
+      {
+        id: 7,
+        title: "Market Analysis: Tech Stocks Show Strong Performance",
+        summary: "Technology sector continues to outperform broader market indices as investors bet on AI and cloud computing growth.",
+        impact: "positive",
+        stocks: ["AAPL", "GOOGL", "MSFT", "META"],
+        timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+        source: "MarketWatch",
+        url: "#"
+      }
+    ]
+
+    const watchlistNews = mockNews.filter(news =>
+      news.stocks.some(stock => watchlistSymbols.includes(stock))
+    )
+
+    res.json(watchlistNews)
+  } catch (error) {
+    console.error('Watchlist news error:', error)
+    res.status(500).json({
+      message: 'Error fetching watchlist news',
+      error: error.message
+    })
+  }
+})
+
 router.get('/news/:symbol?', auth, async (req, res) => {
   try {
     const { symbol } = req.params
