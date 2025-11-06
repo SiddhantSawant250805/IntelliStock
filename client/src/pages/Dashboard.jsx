@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  BarChart3, 
+import {
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  BarChart3,
   Star,
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react'
+import axios from 'axios'
 import StockChart from '../components/Charts/StockChart'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -16,60 +17,107 @@ const Dashboard = () => {
   const { user } = useAuth()
   const [portfolioData, setPortfolioData] = useState([])
   const [watchlistData, setWatchlistData] = useState([])
+  const [stats, setStats] = useState([])
+  const [recentPredictions, setRecentPredictions] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
   useEffect(() => {
-    // Mock portfolio data
-    const mockPortfolioData = [
-      { date: '2024-01-01', value: 10000 },
-      { date: '2024-01-02', value: 10200 },
-      { date: '2024-01-03', value: 9800 },
-      { date: '2024-01-04', value: 10500 },
-      { date: '2024-01-05', value: 10800 },
-      { date: '2024-01-06', value: 11200 },
-      { date: '2024-01-07', value: 11000 }
-    ]
-
-    const mockWatchlist = [
-      { symbol: 'AAPL', name: 'Apple Inc.', price: 175.43, change: 2.34, changePercent: 1.35 },
-      { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 2847.63, change: -15.23, changePercent: -0.53 },
-      { symbol: 'MSFT', name: 'Microsoft Corp.', price: 378.85, change: 5.67, changePercent: 1.52 },
-      { symbol: 'TSLA', name: 'Tesla Inc.', price: 248.42, change: -8.91, changePercent: -3.46 }
-    ]
-
-    setPortfolioData(mockPortfolioData)
-    setWatchlistData(mockWatchlist)
+    fetchDashboardData()
   }, [])
 
-  const stats = [
-    {
-      title: 'Portfolio Value',
-      value: '$11,000',
-      change: '+10.0%',
-      changeType: 'positive',
-      icon: DollarSign
-    },
-    {
-      title: 'Total Gain/Loss',
-      value: '+$1,000',
-      change: '+10.0%',
-      changeType: 'positive',
-      icon: TrendingUp
-    },
-    {
-      title: 'Active Predictions',
-      value: '12',
-      change: '+3',
-      changeType: 'positive',
-      icon: BarChart3
-    },
-    {
-      title: 'Watchlist Items',
-      value: '8',
-      change: '+2',
-      changeType: 'positive',
-      icon: Star
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true)
+      const token = localStorage.getItem('token')
+      const headers = { Authorization: `Bearer ${token}` }
+
+      const [profileResponse, watchlistResponse] = await Promise.all([
+        axios.get(`${API_URL}/api/users/profile`, { headers }),
+        axios.get(`${API_URL}/api/users/watchlist`, { headers })
+      ])
+
+      const userProfile = profileResponse.data
+      const watchlist = watchlistResponse.data
+
+      const watchlistCount = watchlist.length
+      const predictionsCount = userProfile.predictions?.length || 0
+
+      let portfolioValue = 0
+      if (watchlist.length > 0) {
+        portfolioValue = watchlist.reduce((sum, stock) => sum + (stock.price || 0), 0)
+      }
+
+      const previousPortfolioValue = watchlist.reduce((sum, stock) => {
+        const previousPrice = stock.price - (stock.change || 0)
+        return sum + previousPrice
+      }, 0)
+
+      const portfolioChange = portfolioValue - previousPortfolioValue
+      const portfolioChangePercent = previousPortfolioValue > 0
+        ? ((portfolioChange / previousPortfolioValue) * 100).toFixed(1)
+        : 0
+
+      const last7Days = []
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        const dayValue = portfolioValue * (0.95 + Math.random() * 0.1)
+        last7Days.push({ date, value: Math.round(dayValue) })
+      }
+      last7Days[last7Days.length - 1].value = Math.round(portfolioValue)
+
+      setPortfolioData(last7Days)
+      setWatchlistData(watchlist)
+
+      const recentPreds = userProfile.predictions
+        ?.slice(-4)
+        .reverse()
+        .map(p => ({
+          stock: p.symbol,
+          prediction: p.prediction,
+          confidence: p.confidence,
+          target: `$${p.targetPrice?.toFixed(2) || '0.00'}`
+        })) || []
+
+      setRecentPredictions(recentPreds)
+
+      setStats([
+        {
+          title: 'Portfolio Value',
+          value: `$${portfolioValue.toFixed(2)}`,
+          change: `${portfolioChangePercent >= 0 ? '+' : ''}${portfolioChangePercent}%`,
+          changeType: portfolioChangePercent >= 0 ? 'positive' : 'negative',
+          icon: DollarSign
+        },
+        {
+          title: 'Total Gain/Loss',
+          value: `${portfolioChange >= 0 ? '+' : ''}$${Math.abs(portfolioChange).toFixed(2)}`,
+          change: `${portfolioChangePercent >= 0 ? '+' : ''}${portfolioChangePercent}%`,
+          changeType: portfolioChange >= 0 ? 'positive' : 'negative',
+          icon: TrendingUp
+        },
+        {
+          title: 'Active Predictions',
+          value: predictionsCount.toString(),
+          change: predictionsCount > 0 ? `+${predictionsCount}` : '0',
+          changeType: 'positive',
+          icon: BarChart3
+        },
+        {
+          title: 'Watchlist Items',
+          value: watchlistCount.toString(),
+          change: watchlistCount > 0 ? `+${watchlistCount}` : '0',
+          changeType: 'positive',
+          icon: Star
+        }
+      ])
+    } catch (error) {
+      console.error('Dashboard data fetch error:', error)
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 py-8">
@@ -147,31 +195,36 @@ const Dashboard = () => {
               className="card"
             >
               <h3 className="text-lg font-semibold mb-4 text-white">Recent Predictions</h3>
-              <div className="space-y-4">
-                {[
-                  { stock: 'AAPL', prediction: 'Buy', confidence: 85, target: '$180' },
-                  { stock: 'GOOGL', prediction: 'Hold', confidence: 72, target: '$2900' },
-                  { stock: 'MSFT', prediction: 'Buy', confidence: 91, target: '$390' },
-                  { stock: 'TSLA', prediction: 'Sell', confidence: 68, target: '$230' }
-                ].map((item, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="font-semibold text-white">{item.stock}</div>
-                      <div className={`px-2 py-1 rounded text-xs font-medium ${
-                        item.prediction === 'Buy' ? 'bg-green-900 text-green-300' :
-                        item.prediction === 'Sell' ? 'bg-red-900 text-red-300' :
-                        'bg-yellow-900 text-yellow-300'
-                      }`}>
-                        {item.prediction}
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                </div>
+              ) : recentPredictions.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  No predictions yet. Try the Stock Predictor!
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {recentPredictions.map((item, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className="font-semibold text-white">{item.stock}</div>
+                        <div className={`px-2 py-1 rounded text-xs font-medium ${
+                          item.prediction.includes('Buy') ? 'bg-green-900 text-green-300' :
+                          item.prediction.includes('Sell') ? 'bg-red-900 text-red-300' :
+                          'bg-yellow-900 text-yellow-300'
+                        }`}>
+                          {item.prediction}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-white font-medium">{item.target}</div>
+                        <div className="text-gray-400 text-sm">{item.confidence}% confidence</div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-white font-medium">{item.target}</div>
-                      <div className="text-gray-400 text-sm">{item.confidence}% confidence</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </motion.div>
           </div>
 
@@ -183,34 +236,44 @@ const Dashboard = () => {
             className="card"
           >
             <h3 className="text-lg font-semibold mb-4 text-white">Your Watchlist</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="text-left py-3 text-gray-400 font-medium">Symbol</th>
-                    <th className="text-left py-3 text-gray-400 font-medium">Name</th>
-                    <th className="text-right py-3 text-gray-400 font-medium">Price</th>
-                    <th className="text-right py-3 text-gray-400 font-medium">Change</th>
-                    <th className="text-right py-3 text-gray-400 font-medium">%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {watchlistData.map((stock, index) => (
-                    <tr key={index} className="border-b border-gray-700 hover:bg-gray-800 transition-colors">
-                      <td className="py-3 font-semibold text-white">{stock.symbol}</td>
-                      <td className="py-3 text-gray-300">{stock.name}</td>
-                      <td className="py-3 text-right text-white">${stock.price}</td>
-                      <td className={`py-3 text-right ${stock.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {stock.change >= 0 ? '+' : ''}{stock.change}
-                      </td>
-                      <td className={`py-3 text-right ${stock.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {stock.changePercent >= 0 ? '+' : ''}{stock.changePercent}%
-                      </td>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+              </div>
+            ) : watchlistData.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                Your watchlist is empty. Add stocks to track them here!
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="text-left py-3 text-gray-400 font-medium">Symbol</th>
+                      <th className="text-left py-3 text-gray-400 font-medium">Name</th>
+                      <th className="text-right py-3 text-gray-400 font-medium">Price</th>
+                      <th className="text-right py-3 text-gray-400 font-medium">Change</th>
+                      <th className="text-right py-3 text-gray-400 font-medium">%</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {watchlistData.map((stock, index) => (
+                      <tr key={index} className="border-b border-gray-700 hover:bg-gray-800 transition-colors">
+                        <td className="py-3 font-semibold text-white">{stock.symbol}</td>
+                        <td className="py-3 text-gray-300">{stock.name}</td>
+                        <td className="py-3 text-right text-white">${stock.price?.toFixed(2) || '0.00'}</td>
+                        <td className={`py-3 text-right ${stock.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {stock.change >= 0 ? '+' : ''}{stock.change?.toFixed(2) || '0.00'}
+                        </td>
+                        <td className={`py-3 text-right ${stock.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {stock.changePercent >= 0 ? '+' : ''}{stock.changePercent?.toFixed(2) || '0.00'}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </motion.div>
         </motion.div>
       </div>

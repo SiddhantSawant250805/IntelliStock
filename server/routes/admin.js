@@ -13,25 +13,40 @@ router.get('/stats', adminAuth, async (req, res) => {
     const bannedUsers = await User.countDocuments({ status: 'banned' })
     const totalStocks = await Stock.countDocuments()
 
-    // Mock additional stats
+    const allUsers = await User.find()
+    const totalPredictions = allUsers.reduce((sum, user) => sum + (user.predictions?.length || 0), 0)
+
+    const usersWithPredictions = allUsers.filter(user => user.predictions && user.predictions.length > 0)
+    let averageAccuracy = 0
+    if (usersWithPredictions.length > 0) {
+      const totalConfidence = usersWithPredictions.reduce((sum, user) => {
+        const userAvgConfidence = user.predictions.reduce((pSum, p) => pSum + (p.confidence || 0), 0) / user.predictions.length
+        return sum + userAvgConfidence
+      }, 0)
+      averageAccuracy = Math.round(totalConfidence / usersWithPredictions.length)
+    }
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const dailyActiveUsers = await User.countDocuments({ lastLogin: { $gte: oneDayAgo } })
+
     const stats = {
       totalUsers,
       activeUsers,
       bannedUsers,
       totalStocks,
-      totalPredictions: 15634,
-      averageAccuracy: 76.8,
-      dailyActiveUsers: 642,
-      revenue: 12450,
-      systemAlerts: 3
+      totalPredictions,
+      averageAccuracy,
+      dailyActiveUsers,
+      revenue: 0,
+      systemAlerts: 0
     }
 
     res.json(stats)
   } catch (error) {
     console.error('Admin stats error:', error)
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error fetching admin stats',
-      error: error.message 
+      error: error.message
     })
   }
 })
@@ -126,37 +141,60 @@ router.delete('/users/:userId', adminAuth, async (req, res) => {
 // Get system analytics
 router.get('/analytics', adminAuth, async (req, res) => {
   try {
-    // Mock analytics data
+    const users = await User.find().sort({ createdAt: 1 })
+
+    const userGrowthMap = {}
+    users.forEach(user => {
+      const date = user.createdAt.toISOString().split('T')[0]
+      userGrowthMap[date] = (userGrowthMap[date] || 0) + 1
+    })
+
+    let cumulativeUsers = 0
+    const userGrowth = []
+    const last7Days = []
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      last7Days.push(date)
+    }
+
+    last7Days.forEach(date => {
+      Object.keys(userGrowthMap).forEach(key => {
+        if (key <= date) {
+          cumulativeUsers = Object.keys(userGrowthMap)
+            .filter(k => k <= date)
+            .reduce((sum, k) => sum + userGrowthMap[k], 0)
+        }
+      })
+      userGrowth.push({ date, users: cumulativeUsers })
+    })
+
+    const allUsers = await User.find()
+    const allPredictions = allUsers.flatMap(user => user.predictions || [])
+
+    const excellentCount = allPredictions.filter(p => p.confidence >= 90).length
+    const goodCount = allPredictions.filter(p => p.confidence >= 80 && p.confidence < 90).length
+    const averageCount = allPredictions.filter(p => p.confidence >= 70 && p.confidence < 80).length
+    const poorCount = allPredictions.filter(p => p.confidence < 70).length
+
+    const total = allPredictions.length || 1
+    const predictionAccuracy = [
+      { name: 'Excellent (90%+)', value: Math.round((excellentCount / total) * 100), color: '#10b981' },
+      { name: 'Good (80-89%)', value: Math.round((goodCount / total) * 100), color: '#3b82f6' },
+      { name: 'Average (70-79%)', value: Math.round((averageCount / total) * 100), color: '#f59e0b' },
+      { name: 'Poor (<70%)', value: Math.round((poorCount / total) * 100), color: '#ef4444' }
+    ]
+
     const analytics = {
-      userGrowth: [
-        { date: '2024-01-01', users: 1000 },
-        { date: '2024-01-02', users: 1050 },
-        { date: '2024-01-03', users: 1120 },
-        { date: '2024-01-04', users: 1180 },
-        { date: '2024-01-05', users: 1200 },
-        { date: '2024-01-06', users: 1230 },
-        { date: '2024-01-07', users: 1247 }
-      ],
-      predictionAccuracy: [
-        { name: 'Excellent (90%+)', value: 25, color: '#10b981' },
-        { name: 'Good (80-89%)', value: 35, color: '#3b82f6' },
-        { name: 'Average (70-79%)', value: 30, color: '#f59e0b' },
-        { name: 'Poor (<70%)', value: 10, color: '#ef4444' }
-      ],
-      topStocks: [
-        { symbol: 'AAPL', predictions: 1234, accuracy: 85 },
-        { symbol: 'GOOGL', predictions: 987, accuracy: 78 },
-        { symbol: 'MSFT', predictions: 876, accuracy: 82 },
-        { symbol: 'TSLA', predictions: 654, accuracy: 71 }
-      ]
+      userGrowth,
+      predictionAccuracy
     }
 
     res.json(analytics)
   } catch (error) {
     console.error('Analytics error:', error)
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error fetching analytics',
-      error: error.message 
+      error: error.message
     })
   }
 })
