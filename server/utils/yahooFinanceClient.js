@@ -1,5 +1,8 @@
+
 const yahooFinance = require('yahoo-finance2').default
-const pRetry = require('p-retry')
+const pRetry = require('p-retry').default;
+
+yahooFinance.suppressNotices(['yahooSurvey'])
 
 const DEFAULT_OPTIONS = {
   timeout: 5000,
