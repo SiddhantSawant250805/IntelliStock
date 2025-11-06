@@ -8,28 +8,50 @@ const News = () => {
   const [news, setNews] = useState([])
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
   useEffect(() => {
-    fetchWatchlistNews()
+    fetchWatchlistNews(1, true)
   }, [])
 
-  const fetchWatchlistNews = async () => {
+  const fetchWatchlistNews = async (pageNum = 1, reset = false) => {
     try {
-      setLoading(true)
+      if (reset) {
+        setLoading(true)
+      } else {
+        setLoadingMore(true)
+      }
+
       const token = localStorage.getItem('token')
-      const response = await axios.get(`${API_URL}/api/stocks/news/watchlist`, {
+      const response = await axios.get(`${API_URL}/api/stocks/news/watchlist?page=${pageNum}&limit=10`, {
         headers: { Authorization: `Bearer ${token}` }
       })
 
-      setNews(response.data)
+      const data = response.data
+
+      if (reset) {
+        setNews(data.news || [])
+      } else {
+        setNews(prev => [...prev, ...(data.news || [])])
+      }
+
+      setHasMore(data.hasMore || false)
+      setPage(pageNum)
     } catch (error) {
       console.error('Fetch news error:', error)
       toast.error('Failed to load news')
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
+  }
+
+  const handleLoadMore = () => {
+    fetchWatchlistNews(page + 1, false)
   }
 
   const filteredNews = news.filter(item => {
@@ -198,11 +220,24 @@ const News = () => {
               </div>
 
               {/* Load More Button */}
-              <div className="text-center mt-12">
-                <button className="btn-secondary">
-                  Load More News
-                </button>
-              </div>
+              {hasMore && (
+                <div className="text-center mt-12">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="btn-secondary flex items-center justify-center space-x-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <span>Loading...</span>
+                      </>
+                    ) : (
+                      <span>Load More News</span>
+                    )}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </motion.div>

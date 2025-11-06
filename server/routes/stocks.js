@@ -163,167 +163,74 @@ router.get('/:symbol/history', auth, async (req, res) => {
 
 router.get('/news/watchlist', auth, async (req, res) => {
   try {
+    const { page = 1, limit = 10 } = req.query
     const user = await User.findById(req.user._id)
-    const watchlistSymbols = user.watchlist.map(stock => stock.symbol.toUpperCase())
+    const watchlist = user.watchlist
 
-    const mockNews = [
-      {
-        id: 1,
-        title: "Apple Reports Record Q4 Earnings, Beats Expectations",
-        summary: "Apple Inc. reported quarterly earnings that exceeded analyst expectations, driven by strong iPhone sales and services revenue growth. The company posted revenue of $94.9 billion, up 6% year-over-year.",
-        impact: "positive",
-        stocks: ["AAPL"],
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        source: "MarketWatch",
-        url: "https://www.marketwatch.com"
-      },
-      {
-        id: 2,
-        title: "Apple's Services Division Hits All-Time High",
-        summary: "Apple's services segment, including Apple Music, iCloud, and App Store, reached a new quarterly record with strong growth across all geographic segments.",
-        impact: "positive",
-        stocks: ["AAPL"],
-        timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-        source: "Bloomberg",
-        url: "https://www.bloomberg.com"
-      },
-      {
-        id: 3,
-        title: "Tesla Faces Production Challenges in China",
-        summary: "Tesla's Shanghai factory encounters supply chain disruptions, potentially affecting Q1 delivery targets. The company is working with local suppliers to resolve bottlenecks in component availability.",
-        impact: "negative",
-        stocks: ["TSLA"],
-        timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-        source: "Reuters",
-        url: "https://www.reuters.com"
-      },
-      {
-        id: 4,
-        title: "Tesla Expands Supercharger Network Across Europe",
-        summary: "Despite production challenges, Tesla continues aggressive expansion of its charging infrastructure, opening 500 new Supercharger stations across European markets this quarter.",
-        impact: "positive",
-        stocks: ["TSLA"],
-        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-        source: "Financial Times",
-        url: "https://www.ft.com"
-      },
-      {
-        id: 5,
-        title: "Microsoft Azure Revenue Surges 30% Year-over-Year",
-        summary: "Microsoft's cloud computing division continues its strong growth trajectory, boosting overall company performance. Azure gains market share as enterprises accelerate cloud migration.",
-        impact: "positive",
-        stocks: ["MSFT"],
-        timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-        source: "Bloomberg",
-        url: "https://www.bloomberg.com"
-      },
-      {
-        id: 6,
-        title: "Microsoft Announces Enterprise AI Solutions",
-        summary: "Microsoft unveils new enterprise AI tools integrated with Azure, targeting the growing demand for business intelligence and automation solutions across Fortune 500 companies.",
-        impact: "positive",
-        stocks: ["MSFT"],
-        timestamp: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString(),
-        source: "TechCrunch",
-        url: "https://www.techcrunch.com"
-      },
-      {
-        id: 7,
-        title: "Google Announces Major AI Integration Across Products",
-        summary: "Alphabet reveals comprehensive AI strategy, integrating advanced language models into search and productivity tools. Google's AI investments expected to drive long-term growth.",
-        impact: "positive",
-        stocks: ["GOOGL"],
-        timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-        source: "The Verge",
-        url: "https://www.theverge.com"
-      },
-      {
-        id: 8,
-        title: "Alphabet Faces Regulatory Scrutiny in EU Markets",
-        summary: "European regulators launch investigation into Google's advertising practices, potentially impacting the company's revenue streams in the region.",
-        impact: "negative",
-        stocks: ["GOOGL"],
-        timestamp: new Date(Date.now() - 9 * 60 * 60 * 1000).toISOString(),
-        source: "Wall Street Journal",
-        url: "https://www.wsj.com"
-      },
-      {
-        id: 9,
-        title: "Federal Reserve Hints at Interest Rate Stability",
-        summary: "Fed officials suggest maintaining current interest rates through Q2, providing market stability signals. Economic indicators show moderate growth without triggering inflation concerns.",
-        impact: "neutral",
-        stocks: ["SPY", "QQQ"],
-        timestamp: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
-        source: "CNBC",
-        url: "https://www.cnbc.com"
-      },
-      {
-        id: 10,
-        title: "Amazon Prime Membership Reaches New Milestone",
-        summary: "Amazon reports significant growth in Prime subscriptions, strengthening its ecosystem and recurring revenue. Prime members show 3x higher spending compared to non-members.",
-        impact: "positive",
-        stocks: ["AMZN"],
-        timestamp: new Date(Date.now() - 11 * 60 * 60 * 1000).toISOString(),
-        source: "Wall Street Journal",
-        url: "https://www.wsj.com"
-      },
-      {
-        id: 11,
-        title: "Amazon Web Services Gains Cloud Market Share",
-        summary: "AWS continues to dominate cloud infrastructure market, posting 13% revenue growth and expanding its lead over competitors with new AI and machine learning services.",
-        impact: "positive",
-        stocks: ["AMZN"],
-        timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-        source: "Forbes",
-        url: "https://www.forbes.com"
-      },
-      {
-        id: 12,
-        title: "Market Analysis: Tech Stocks Show Strong Performance",
-        summary: "Technology sector continues to outperform broader market indices as investors bet on AI and cloud computing growth. Tech sector up 15% year-to-date compared to S&P 500's 8% gain.",
-        impact: "positive",
-        stocks: ["AAPL", "GOOGL", "MSFT", "META"],
-        timestamp: new Date(Date.now() - 13 * 60 * 60 * 1000).toISOString(),
-        source: "MarketWatch",
-        url: "https://www.marketwatch.com"
-      },
-      {
-        id: 13,
-        title: "Nvidia's AI Chip Demand Exceeds Supply Expectations",
-        summary: "Nvidia reports unprecedented demand for its AI chips, with orders backlogged through next quarter. Stock surges on strong guidance and expanding market opportunity.",
-        impact: "positive",
-        stocks: ["NVDA"],
-        timestamp: new Date(Date.now() - 14 * 60 * 60 * 1000).toISOString(),
-        source: "Reuters",
-        url: "https://www.reuters.com"
-      },
-      {
-        id: 14,
-        title: "Meta Platforms Invests Heavily in Metaverse Development",
-        summary: "Meta announces $10 billion investment in Reality Labs despite short-term losses. Company remains committed to long-term vision of immersive computing experiences.",
-        impact: "neutral",
-        stocks: ["META"],
-        timestamp: new Date(Date.now() - 15 * 60 * 60 * 1000).toISOString(),
-        source: "Bloomberg",
-        url: "https://www.bloomberg.com"
-      },
-      {
-        id: 15,
-        title: "Banking Sector Sees Increased M&A Activity",
-        summary: "Regional banks explore consolidation opportunities amid changing regulatory landscape. Analysts predict wave of mergers in coming quarters as institutions seek scale.",
-        impact: "neutral",
-        stocks: ["JPM", "BAC", "WFC"],
-        timestamp: new Date(Date.now() - 16 * 60 * 60 * 1000).toISOString(),
-        source: "Financial Times",
-        url: "https://www.ft.com"
+    if (!watchlist || watchlist.length === 0) {
+      return res.json({ news: [], hasMore: false, total: 0 })
+    }
+
+    const allNews = []
+    const newsIdMap = new Map()
+
+    for (const stock of watchlist) {
+      try {
+        const quote = await yahooFinance.quoteSummary(stock.symbol, {
+          modules: ['price', 'summaryDetail']
+        })
+
+        const newsResult = await yahooFinance.search(stock.symbol, {
+          newsCount: 10
+        })
+
+        if (newsResult.news && newsResult.news.length > 0) {
+          const stockNews = newsResult.news.map(article => {
+            const sentiment = analyzeSentiment(article.title)
+
+            return {
+              id: article.uuid || `${stock.symbol}-${article.providerPublishTime}`,
+              title: article.title,
+              summary: article.summary || article.title,
+              impact: sentiment,
+              stocks: [stock.symbol],
+              timestamp: new Date(article.providerPublishTime * 1000).toISOString(),
+              source: article.publisher,
+              url: article.link
+            }
+          })
+
+          stockNews.forEach(news => {
+            if (!newsIdMap.has(news.id)) {
+              newsIdMap.set(news.id, news)
+              allNews.push(news)
+            } else {
+              const existing = newsIdMap.get(news.id)
+              if (!existing.stocks.includes(stock.symbol)) {
+                existing.stocks.push(stock.symbol)
+              }
+            }
+          })
+        }
+      } catch (err) {
+        console.error(`Error fetching news for ${stock.symbol}:`, err.message)
       }
-    ]
+    }
 
-    const watchlistNews = mockNews.filter(news =>
-      news.stocks.some(stock => watchlistSymbols.includes(stock))
-    )
+    allNews.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
 
-    res.json(watchlistNews)
+    const startIndex = (page - 1) * limit
+    const endIndex = startIndex + parseInt(limit)
+    const paginatedNews = allNews.slice(startIndex, endIndex)
+    const hasMore = endIndex < allNews.length
+
+    res.json({
+      news: paginatedNews,
+      hasMore,
+      total: allNews.length,
+      page: parseInt(page),
+      totalPages: Math.ceil(allNews.length / limit)
+    })
   } catch (error) {
     console.error('Watchlist news error:', error)
     res.status(500).json({
@@ -332,6 +239,24 @@ router.get('/news/watchlist', auth, async (req, res) => {
     })
   }
 })
+
+function analyzeSentiment(title) {
+  const lowerTitle = title.toLowerCase()
+
+  const positiveWords = ['surge', 'gain', 'rise', 'jump', 'beat', 'exceed', 'growth', 'profit',
+                        'success', 'record', 'high', 'boost', 'strong', 'positive', 'rally',
+                        'upgrade', 'outperform', 'bullish', 'expand', 'breakthrough']
+  const negativeWords = ['fall', 'drop', 'decline', 'loss', 'miss', 'weak', 'concern', 'risk',
+                         'low', 'cut', 'negative', 'downgrade', 'bearish', 'challenge',
+                         'struggle', 'plunge', 'crash', 'slump', 'warning']
+
+  const positiveCount = positiveWords.filter(word => lowerTitle.includes(word)).length
+  const negativeCount = negativeWords.filter(word => lowerTitle.includes(word)).length
+
+  if (positiveCount > negativeCount) return 'positive'
+  if (negativeCount > positiveCount) return 'negative'
+  return 'neutral'
+}
 
 router.get('/news/:symbol?', auth, async (req, res) => {
   try {
