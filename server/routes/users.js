@@ -1,7 +1,13 @@
 const express = require('express')
-const yahooFinance = require('yahoo-finance2').default
+const createYahooFinanceClient = require('../utils/yahooFinanceClient')
 const User = require('../models/User')
 const { auth } = require('../middleware/auth')
+
+const yahooFinance = createYahooFinanceClient({
+  timeout: 5000,
+  maxRetries: 3,
+  retryDelay: 1000
+})
 
 const router = express.Router()
 
@@ -101,14 +107,14 @@ router.get('/watchlist', auth, async (req, res) => {
         try {
           const quote = await yahooFinance.quote(stock.symbol)
 
-          const queryOptions = {
-            period1: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          const period1 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+          const chartData = await yahooFinance.chart(stock.symbol, {
+            period1,
             interval: '1d'
-          }
-          const history = await yahooFinance.historical(stock.symbol, queryOptions)
+          })
 
-          const historicalData = history.map(item => ({
-            date: item.date.toISOString().split('T')[0],
+          const historicalData = chartData.quotes.map(item => ({
+            date: new Date(item.date * 1000).toISOString().split('T')[0],
             value: item.close
           }))
 

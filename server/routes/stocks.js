@@ -1,9 +1,15 @@
 const express = require('express')
 const axios = require('axios')
-const yahooFinance = require('yahoo-finance2').default
+const createYahooFinanceClient = require('../utils/yahooFinanceClient')
 const Stock = require('../models/Stock')
 const User = require('../models/User')
 const { auth } = require('../middleware/auth')
+
+const yahooFinance = createYahooFinanceClient({
+  timeout: 5000,
+  maxRetries: 3,
+  retryDelay: 1000
+})
 
 const router = express.Router()
 
@@ -129,21 +135,22 @@ router.get('/:symbol/history', auth, async (req, res) => {
     const { period = '1mo' } = req.query
 
     const periodMap = {
-      '7d': { period1: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-      '1mo': { period1: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-      '3mo': { period1: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
-      '1y': { period1: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) }
+      '7d': 7,
+      '1mo': 30,
+      '3mo': 90,
+      '1y': 365
     }
 
-    const queryOptions = {
-      period1: periodMap[period]?.period1 || periodMap['1mo'].period1,
+    const days = periodMap[period] || 30
+    const period1 = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+
+    const chartData = await yahooFinance.chart(symbol, {
+      period1,
       interval: '1d'
-    }
+    })
 
-    const history = await yahooFinance.historical(symbol.toUpperCase(), queryOptions)
-
-    const historicalData = history.map(item => ({
-      date: item.date.toISOString().split('T')[0],
+    const historicalData = chartData.quotes.map(item => ({
+      date: new Date(item.date * 1000).toISOString().split('T')[0],
       value: item.close,
       open: item.open,
       high: item.high,
@@ -176,29 +183,29 @@ router.get('/news/watchlist', auth, async (req, res) => {
 
     for (const stock of watchlist) {
       try {
-        const quote = await yahooFinance.quoteSummary(stock.symbol, {
-          modules: ['price', 'summaryDetail']
-        })
-
         const newsResult = await yahooFinance.search(stock.symbol, {
           newsCount: 10
         })
 
-        if (newsResult.news && newsResult.news.length > 0) {
-          const stockNews = newsResult.news.map(article => {
-            const sentiment = analyzeSentiment(article.title)
+        if (newsResult && newsResult.news && newsResult.news.length > 0) {
+          const stockNews = newsResult.news
+            .filter(article => article && article.title && article.link)
+            .map(article => {
+              const sentiment = analyzeSentiment(article.title)
 
-            return {
-              id: article.uuid || `${stock.symbol}-${article.providerPublishTime}`,
-              title: article.title,
-              summary: article.summary || article.title,
-              impact: sentiment,
-              stocks: [stock.symbol],
-              timestamp: new Date(article.providerPublishTime * 1000).toISOString(),
-              source: article.publisher,
-              url: article.link
-            }
-          })
+              return {
+                id: article.uuid || `${stock.symbol}-${article.providerPublishTime || Date.now()}`,
+                title: article.title,
+                summary: article.summary || article.title,
+                impact: sentiment,
+                stocks: [stock.symbol],
+                timestamp: article.providerPublishTime
+                  ? new Date(article.providerPublishTime * 1000).toISOString()
+                  : new Date().toISOString(),
+                source: article.publisher || 'Yahoo Finance',
+                url: article.link
+              }
+            })
 
           stockNews.forEach(news => {
             if (!newsIdMap.has(news.id)) {
