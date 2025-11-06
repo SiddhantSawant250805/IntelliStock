@@ -79,6 +79,11 @@ class LSTMStockPredictor:
         if self.model is None:
             X_train, X_test, y_train, y_test, scaled_data = self.prepare_data(data)
             self.train(X_train, y_train, X_test, y_test)
+        else:
+            # If model exists, we still need to fit scaler on current data
+            features = ['Open', 'High', 'Low', 'Close', 'Volume']
+            data_features = data[features].values
+            self.scaler.fit(data_features)
 
         features = ['Open', 'High', 'Low', 'Close', 'Volume']
         data_features = data[features].values
@@ -97,8 +102,14 @@ class LSTMStockPredictor:
             new_row[3] = predicted_price
             current_sequence = np.vstack([current_sequence[1:], new_row])
 
+        # Create dummy array with realistic values from current data to help inverse transform
         dummy_array = np.zeros((len(predictions), 5))
-        dummy_array[:, 3] = predictions
+        # Use last known values for other features
+        last_values = data_features[-1].copy()
+        for i in range(len(predictions)):
+            dummy_array[i] = last_values
+            dummy_array[i, 3] = predictions[i]
+
         predicted_prices = self.scaler.inverse_transform(dummy_array)[:, 3]
 
         return predicted_prices
